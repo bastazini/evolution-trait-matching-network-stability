@@ -1,0 +1,120 @@
+require(geiger)
+require(plotrix)
+require(picante)
+require(bipartite)
+require(igraph)
+require(ggplot2)
+require(lme4)
+require(car)
+
+runs <- 1000
+power_H <- c(0.0001,1,2,5) #Phylogenetic signal higher trophic level
+power_L <- c(0.0001,1,2,5)  #Phylogenetic signal lower trophic level
+complementarity <- c(0.25, 0.5, 0.75, 1) #Trait complementary 
+
+RESULTADOS <- data.frame(leading_eigenvalue = numeric(),
+                         power_H = numeric(),
+                         power_L = numeric(),
+                         complementarity = numeric())
+
+contagem <- 0
+for (p in complementarity) {
+  for (o in power_H) {
+    for (q in power_L) {
+      for (m in 1:runs) {
+        contagem <- contagem + 1
+        n_spe_H <- sample(10:20, 1)
+        n_spe_L <- sample(10:20, 1)
+        
+        tree_H <- sim.bdtree(b = 0.1, d = 0, stop = "taxa", n = n_spe_H, extinct = FALSE)
+        tree_L <- sim.bdtree(b = 0.1, d = 0, stop = "taxa", n = n_spe_L, extinct = FALSE)
+        tree_H$tip.label <- sprintf("H_%.3d", 1:length(tree_H$tip.label))
+        tree_L$tip.label <- sprintf("L_%.3d", 1:length(tree_L$tip.label))
+        
+        trait_H <- rTraitCont(compute.brlen(tree_H, power = o), model = "BM")
+        trait_H <- rescale(trait_H, c(0, 1))
+        trait_L <- rTraitCont(compute.brlen(tree_L, power = q), model = "BM")
+        trait_L <- rescale(trait_L, c(0, 1))
+        
+        d_H <- matrix(runif(n_spe_H, max = p), nrow = n_spe_L, ncol = n_spe_H, byrow = TRUE)
+        d_L <- matrix(runif(n_spe_L, max = p), nrow = n_spe_L, ncol = n_spe_H, byrow = FALSE)
+        web <- outer(trait_L, trait_H, FUN = function(x, y) abs(x - y) < 0.5 * (d_H + d_L))
+        web <- ifelse(web, 1, 0)
+        
+        z_H <- which(colSums(web) == 0)
+        if (length(z_H) > 0) {
+          for (i in z_H) web[sample(1:n_spe_L, 1), i] <- 1
+        }
+        z_L <- which(rowSums(web) == 0)
+        if (length(z_L) > 0) {
+          for (i in z_L) web[i, sample(1:n_spe_H, 1)] <- 1
+        }
+        
+        singular_values <- svd(web)$d
+        leading_eigenvalue <- max(singular_values)
+        
+        RESULTADOS <- rbind(RESULTADOS, data.frame(leading_eigenvalue = leading_eigenvalue,
+                                                   power_H = o,
+                                                   power_L = q,
+                                                   complementarity = p))
+      }
+    }
+  }
+}
+
+print(
+  ggplot(RESULTADOS, aes(x = as.numeric(power_H), y = leading_eigenvalue, color = as.factor(complementarity))) +
+    geom_point(alpha = 0.5) +
+    geom_smooth(method = "lm") +
+    labs(title = "Effect of Phylogenetic Signal and Complementarity on Stability",
+         x = "Phylogenetic Signal (Power H)",
+         y = "Leading Eigenvalue (Stability)",
+         color = "Complementarity") +
+    theme_minimal()
+)
+
+print(head(RESULTADOS))
+
+library(ggplot2)
+
+# 2D interaction plot with facet for complementarity
+ggplot(RESULTADOS, aes(x = power_H, y = leading_eigenvalue, color = as.factor(power_L))) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~ as.factor(complementarity)) +  # Facet by complementarity
+  labs(title = "Influence of Phylogenetic Signal and Trait Complementarity on Stability",
+       x = "Phylogenetic Signal (Power H)", 
+       y = "Leading Eigenvalue (Stability)",
+       color = "Phylogenetic Signal (Power L)") +
+  theme_minimal()
+
+
+# Statistical test using linear mixed model
+model <- aov(leading_eigenvalue ~ power_H + power_L + complementarity, data = RESULTADOS)
+summary(model)
+
+library(ggplot2)
+
+ggplot(RESULTADOS, aes(x = as.factor(power_H), y = leading_eigenvalue, fill = as.factor(complementarity))) +
+  geom_violin() +  # Change to a violin plot
+  facet_wrap(~ as.factor(power_L)) +  # Facet by power_L
+  labs(title = "Stability as a Function of Phylogenetic Signal and Complementarity",
+       x = "Phylogenetic Signal Higher trophic level", 
+       y = "Leading Eigenvalue (Stability)",
+       fill = " Trait Complementarity") +
+  theme_minimal() +  # Clean theme
+  coord_flip()  # Make it horizontal
+
+
+ggplot(RESULTADOS, aes(x = as.factor(power_H), y = leading_eigenvalue, fill = as.factor(complementarity))) +
+  geom_violin() +  # Change to a violin plot
+  geom_jitter(aes(color = as.factor(complementarity)), width = 0.15, alpha = 0.5) +  # Add points inside the violin plot
+  facet_wrap(~ as.factor(power_L)) +  # Facet by power_L
+  labs(title = "Stability",
+       x = "Phylogenetic Signal Higher trophic level", 
+       y = "Leading Eigenvalue (Stability)",
+       fill = "Complementarity",
+       color = "Complementarity") +  # Add color label for points
+  theme_minimal() +  # Clean theme
+  coord_flip()  # Make it horizontal
+
