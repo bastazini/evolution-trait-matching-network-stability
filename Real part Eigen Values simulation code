@@ -72,15 +72,22 @@ model <- lmer(real_eigenvalue ~ power_H * power_L * complementarity + (1|power_H
 anova_results <- Anova(model, type = "III")
 print(anova_results)
 
-# Contour plot
-ggplot(RESULTADOS, aes(x = power_H, y = power_L, z = real_eigenvalue)) +
+library(dplyr)
+library(ggplot2)
+
+# Aggregate data to avoid duplicate (x, y) points
+RESULTADOS_grid <- RESULTADOS %>%
+  group_by(power_H, power_L) %>%
+  summarise(real_eigenvalue = mean(real_eigenvalue, na.rm = TRUE), .groups = "drop")
+
+# Create the contour plot with the aggregated data
+ggplot(RESULTADOS_grid, aes(x = power_H, y = power_L, z = real_eigenvalue)) +
   geom_contour_filled() +
-  geom_point(alpha = 0.0) +  # Add scatter points for better visualization
   labs(
     title = "Contour Plot: Phylogenetic Signal and Stability",
     x = "Phylogenetic Signal (Power H)",
     y = "Phylogenetic Signal (Power L)",
-    fill = "Real Part of  Eigenvalue (Stability)"
+    fill = "Real Part of Eigenvalue (Stability)"
   ) +
   theme_minimal()
 
