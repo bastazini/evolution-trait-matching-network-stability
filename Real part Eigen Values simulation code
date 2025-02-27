@@ -9,7 +9,7 @@ require(car)
 
 runs <- 3000
 power_H <- c(0.0001,1,2,5)
-power_L <- c(0.0001,1,2,5)  # Now varying instead of being fixed
+power_L <- c(0.0001,1,2,5)  # 
 complementarity <- c(0.25, 0.5, 0.75, 1) #Trait complementary 
 
 RESULTADOS <- data.frame(real_eigenvalue = numeric(),
@@ -86,10 +86,11 @@ ggplot(RESULTADOS_grid, aes(x = power_H, y = power_L, z = real_eigenvalue)) +
   labs(
     title = "Contour Plot: Phylogenetic Signal and Stability",
     x = "Phylogenetic Signal (Power H)",
-    y = "Phylogenetic Signal (Power L)",
-    fill = "Real Part of Eigenvalue (Stability)"
+    y = expression(Re(lambda)),  # 
+    fill = "Real Part of Eigenvalue (Stability)"  
   ) +
   theme_minimal()
+
 
 ggplot(RESULTADOS, aes(x = as.factor(power_H), y = real_eigenvalue, fill = as.factor(complementarity))) +
   geom_violin() +  # Change to a violin plot
@@ -97,7 +98,7 @@ ggplot(RESULTADOS, aes(x = as.factor(power_H), y = real_eigenvalue, fill = as.fa
   facet_wrap(~ as.factor(power_L)) +  # Facet by power_L
   labs(title = "Stability",
        x = "Phylogenetic Signal Higher trophic level", 
-       y = "Real Part of  Eigenvalues (Stability)",
+       y = expression(Re(lambda)),
        fill = "Complementarity",
        color = "Complementarity") +  # Add color label for points
   theme_minimal() +  # Clean theme
@@ -108,7 +109,7 @@ ggplot(RESULTADOS, aes(x = as.factor(power_H), y = real_eigenvalue, fill = as.fa
   facet_wrap(~ as.factor(power_L)) +  # Facet by power_L
   labs(title = "Stability as a Function of Phylogenetic Signal and Complementarity",
        x = "Phylogenetic Signal Higher trophic level", 
-       y = "Real Eigenvalue (Stability)",
+       y = expression(Re(lambda)),
        fill = " Trait Complementarity") +
   theme_minimal() +  # Clean theme
   coord_flip()  # Make it horizontal
