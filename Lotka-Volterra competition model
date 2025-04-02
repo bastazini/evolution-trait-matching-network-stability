@@ -9,7 +9,7 @@ require(car)
 library(dplyr)
 
 runs <- 1000 # Reduced for demonstration
-power_H <- c(0.0001,1,2,5)
+power_H <- c(0.000
 power_L <- c(0.0001,1,2,5)  #
 complementarity <- c(0.25, 0.5, 0.75, 1) #Trait complementary
 
