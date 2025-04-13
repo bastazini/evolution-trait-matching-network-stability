@@ -1,138 +1,273 @@
+# Load necessary libraries
 require(geiger)
-require(plotrix)
+# require(plotrix) # Not strictly needed for the simulation core
 require(picante)
-require(bipartite)
-require(igraph)
+# require(bipartite) # Not strictly needed for the simulation core
+# require(igraph) # Not strictly needed for the simulation core
 require(ggplot2)
 require(lme4)
 require(car)
 library(dplyr)
+library(Matrix) # Useful for sparse matrices if needed, but eigen needs dense
+library(scales) # For rescale function
 
-runs <- 1000 # Reduced for demonstration
-power_H <- c(0.0001,1,2,5)
-power_L <- c(0.0001,1,2,5)  #
-complementarity <- c(0.25, 0.5, 0.75, 1) #Trait complementary
+# --- Simulation Parameters ---
+# runs <- 10000 # Full run
+runs <- 1000 # Reduced for testing - Increase for actual analysis!
+power_H_vals <- c(0.0001, 1, 2, 5)
+power_L_vals <- c(0.0001, 1, 2, 5)
+complementarity_vals <- c(0.25, 0.5, 0.75, 1) # Trait complementary
 
+# --- Data Storage ---
 RESULTADOS <- data.frame(real_eigenvalue = numeric(),
                          power_H = numeric(),
                          power_L = numeric(),
-                         complementarity = numeric())
+                         complementarity = numeric(),
+                         run_id = integer()) # Add run_id for clarity
 
 contagem <- 0
-for (p in complementarity) {
-  for (o in power_H) {
-    for (q in power_L) {
+
+# --- Main Simulation Loop ---
+for (p_comp in complementarity_vals) {
+  for (o_powerH in power_H_vals) {
+    for (q_powerL in power_L_vals) {
+      message(paste("Running: Compl=", p_comp, ", PowH=", o_powerH, ", PowL=", q_powerL)) # Progress indicator
       for (m in 1:runs) {
         contagem <- contagem + 1
-        n_spe_H <- sample(5:8, 1) #Reduced sample size for demonstration
-        n_spe_L <- sample(5:8, 1) #Reduced sample size for demonstration
+        
+        # 1. Phylogenetic Tree Simulation
+        n_spe_H <- sample(5:8, 1)
+        n_spe_L <- sample(5:8, 1)
+        n_spe <- n_spe_H + n_spe_L # Total species
         
         tree_H <- sim.bdtree(b = 0.1, d = 0, stop = "taxa", n = n_spe_H, extinct = FALSE)
         tree_L <- sim.bdtree(b = 0.1, d = 0, stop = "taxa", n = n_spe_L, extinct = FALSE)
-        tree_H$tip.label <- sprintf("H_%.3d", 1:length(tree_H$tip.label))
-        tree_L$tip.label <- sprintf("L_%.3d", 1:length(tree_L$tip.label))
+        # Ensure no zero branch lengths
+        tree_H$edge.length[tree_H$edge.length <= 0] <- 1e-6
+        tree_L$edge.length[tree_L$edge.length <= 0] <- 1e-6
         
-        trait_H <- rTraitCont(compute.brlen(tree_H, power = o), model = "BM")
-        trait_H <- rescale(trait_H, c(0, 1))
-        trait_L <- rTraitCont(compute.brlen(tree_L, power = q), model = "BM")
-        trait_L <- rescale(trait_L, c(0, 1))
+        tree_H$tip.label <- sprintf("H%03d", 1:n_spe_H) # Simpler labels
+        tree_L$tip.label <- sprintf("L%03d", 1:n_spe_L)
         
-        d_H <- matrix(runif(n_spe_H, max = p), nrow = n_spe_L, ncol = n_spe_H, byrow = TRUE)
-        d_L <- matrix(runif(n_spe_L, max = p), nrow = n_spe_L, ncol = n_spe_H, byrow = FALSE)
-        web <- outer(trait_L, trait_H, FUN = function(x, y) abs(x - y) < 0.5 * (d_H + d_L))
-        web <- ifelse(web, 1, 0)
+        # 2. Trait Evolution
+        # Use tryCatch for robustness if compute.brlen fails occasionally
+        trait_H_raw <- tryCatch(rTraitCont(compute.brlen(tree_H, power = o_powerH), model = "BM"), error = function(e) rnorm(n_spe_H))
+        trait_L_raw <- tryCatch(rTraitCont(compute.brlen(tree_L, power = q_powerL), model = "BM"), error = function(e) rnorm(n_spe_L))
         
+        # Ensure traits are vectors and rescale
+        trait_H <- rescale(as.numeric(trait_H_raw), c(0, 1))
+        trait_L <- rescale(as.numeric(trait_L_raw), c(0, 1))
+        names(trait_H) <- tree_H$tip.label
+        names(trait_L) <- tree_L$tip.label
+        
+        # Combine traits for easier matrix calculation later (L first, then H)
+        all_traits <- c(trait_L, trait_H)
+        names(all_traits) <- c(names(trait_L), names(trait_H))
+        species_names <- names(all_traits) # Consistent order
+        
+        # 3. Interaction Network Construction (Threshold Rule)
+        # --- Corrected d_H and d_L calculation ---
+        d_vals_H <- runif(n_spe_H, min = 0, max = p_comp) # Vector of length n_spe_H
+        d_vals_L <- runif(n_spe_L, min = 0, max = p_comp) # Vector of length n_spe_L
+        names(d_vals_H) <- names(trait_H)
+        names(d_vals_L) <- names(trait_L)
+        
+        # --- Calculate binary web based on threshold ---
+        web <- matrix(0, nrow = n_spe_L, ncol = n_spe_H,
+                      dimnames = list(names(trait_L), names(trait_H)))
+        for (i in 1:n_spe_L) {
+          for (j in 1:n_spe_H) {
+            trait_diff <- abs(trait_L[i] - trait_H[j])
+            niche_threshold <- 0.5 * (d_vals_L[i] + d_vals_H[j])
+            if (trait_diff < niche_threshold) {
+              web[i, j] <- 1
+            }
+          }
+        }
+        
+        # --- Ensure all species interact ---
+        # Check higher level species (columns)
         z_H <- which(colSums(web) == 0)
         if (length(z_H) > 0) {
-          for (i in z_H) web[sample(1:n_spe_L, 1), i] <- 1
+          for (h_idx in z_H) {
+            l_partner <- sample(1:n_spe_L, 1)
+            web[l_partner, h_idx] <- 1
+          }
         }
+        # Check lower level species (rows)
         z_L <- which(rowSums(web) == 0)
         if (length(z_L) > 0) {
-          for (i in z_L) web[i, sample(1:n_spe_H, 1)] <- 1
+          for (l_idx in z_L) {
+            h_partner <- sample(1:n_spe_H, 1)
+            web[l_idx, h_partner] <- 1
+          }
         }
         
-        # --- Population Dynamics Simulation (Simplified Lotka-Volterra) ---
-        n_spe <- n_spe_H + n_spe_L
-        N <- runif(n_spe, 0.5, 1)  # Initial abundances
+        # 4. Interaction Matrix with Trait Differences (Continuous Strength)
+        # --- Calculate potential strengths based on trait difference ---
+        # Matrix dimension n_spe x n_spe
+        potential_I <- outer(all_traits, all_traits,
+                             FUN = function(Ti, Tj) exp(-abs(Ti - Tj)))
+        dimnames(potential_I) <- list(species_names, species_names)
         
-        # Create the interaction matrix. Make it square, including both trophic levels.
-        interaction_matrix <- matrix(0, nrow = n_spe, ncol = n_spe)
-        interaction_matrix[1:n_spe_L, (n_spe_L + 1):n_spe] <- web  # L influence H
-        interaction_matrix[(n_spe_L + 1):n_spe, 1:n_spe_L] <- t(web) # H influence L (transposed)
+        # --- Construct the final interaction matrix for dynamics ---
+        interaction_matrix_cont <- matrix(0, nrow = n_spe, ncol = n_spe,
+                                          dimnames = list(species_names, species_names))
         
-        # Intraspecific competition (diagonal elements)
-        diag(interaction_matrix) <- -0.1
+        # Populate interspecific interactions based on 'web' and signs
+        # L affects H (rows 1:n_spe_L, cols (n_spe_L+1):n_spe) -> NOT in LV term for L
+        # H affects L (rows (n_spe_L+1):n_spe, cols 1:n_spe_L) -> Effect of H on L (-)
+        # L affects H (rows 1:n_spe_L, cols (n_spe_L+1):n_spe) -> Effect of L on H (+)
         
-        # Time steps and simulation parameters
+        for (i in 1:n_spe_L) { # Index for L species
+          for (j in 1:n_spe_H) { # Index for H species
+            if (web[i, j] == 1) {
+              # Effect of H(j) on L(i) - Consumer eating resource
+              l_global_idx <- i
+              h_global_idx <- n_spe_L + j
+              interaction_matrix_cont[l_global_idx, h_global_idx] <- -potential_I[l_global_idx, h_global_idx]
+              
+              # Effect of L(i) on H(j) - Resource benefit to consumer
+              interaction_matrix_cont[h_global_idx, l_global_idx] <- +potential_I[h_global_idx, l_global_idx]
+            }
+          }
+        }
+        
+        # Add intraspecific competition (diagonal)
+        # Option 1: Constant term
+        # diag(interaction_matrix_cont) <- -1.0
+        # Option 2: Based on trait difference (I_ii = exp(-0) = 1) scaled
+        diag(interaction_matrix_cont) <- -1.0 * diag(potential_I) # Results in -1 for all
+        
+        # 5. Lotka-Volterra Population Dynamics
+        # --- Calculate trait-dependent growth rates ---
+        r_base <- runif(1, 0.1, 0.2) # Single base rate per simulation run
+        r <- r_base * (1 + all_traits)
+        # Assign negative growth rate to higher trophic level if they *require* food
+        # Or keep positive base growth for all, rely on interactions. Let's keep it simple first.
+        # r[(n_spe_L + 1):n_spe] <- -r_base # Alternative: H cannot grow without L
+        
+        # --- Simulation settings ---
         time_steps <- 1000
         dt <- 0.01
-        r <- runif(n_spe, 0.1, 0.2)  # Intrinsic growth rates
+        N <- runif(n_spe, 0.1, 0.5) # Initial random abundances
         
+        # --- Euler integration loop ---
         for (t in 1:time_steps) {
-          dN <- N * (r + interaction_matrix %*% N) * dt
-          N <- pmax(0, N + dN)  # Ensure abundances don't go negative
+          # Use the CONTINUOUS interaction matrix here
+          dN <- N * (r + interaction_matrix_cont %*% N)
+          N <- pmax(0, N + dN * dt) # Ensure abundances don't go negative
+          if(any(is.na(N)) || any(is.infinite(N))) { # Check for instability
+            warning("Population explosion/crash detected. Setting N to NA.")
+            N <- rep(NA, n_spe)
+            break
+          }
         }
         
-        # --- Stability Analysis (Jacobian) ---
-        # Jacobian matrix (very simplified)
-        J <- interaction_matrix  # In this simplified example, we assume interaction_matrix IS the Jacobian
+        # 6. Stability Analysis
+        # --- Calculate Jacobian (Simplified approach from description) ---
+        # Description implies J = I (the continuous interaction matrix)
+        # A more accurate Jacobian at equilibrium N* would be J = diag(N*) %*% I
+        # Using the simplification:
+        if(any(is.na(N))) {
+          real_eigenvalue <- NA # Assign NA if simulation failed
+        } else {
+          # Use the continuous matrix as the Jacobian based on the description's simplification
+          J <- interaction_matrix_cont
+          eigenvalues <- eigen(J, only.values = TRUE)$values
+          real_eigenvalue <- max(Re(eigenvalues))
+        }
         
-        eigenvalues <- eigen(J)$values
-        real_eigenvalue <- max(Re(eigenvalues))
         
+        # 7. Store Results
         RESULTADOS <- rbind(RESULTADOS, data.frame(real_eigenvalue = real_eigenvalue,
-                                                   power_H = o,
-                                                   power_L = q,
-                                                   complementarity = p))
-      }
-    }
-  }
+                                                   power_H = o_powerH,
+                                                   power_L = q_powerL,
+                                                   complementarity = p_comp,
+                                                   run_id = contagem))
+      } # end runs loop (m)
+    } # end power_L loop (q)
+  } # end power_H loop (o)
+} # end complementarity loop (p)
+
+
+# --- Post-Simulation Analysis ---
+
+# Remove rows where simulation failed (optional, but recommended)
+RESULTADOS_clean <- na.omit(RESULTADOS)
+print(paste("Removed", nrow(RESULTADOS) - nrow(RESULTADOS_clean), "rows due to NA eigenvalues."))
+
+# Check if enough data remains
+if (nrow(RESULTADOS_clean) < 10) {
+  stop("Insufficient valid data for analysis after removing NAs.")
 }
 
-# Statistical test using linear mixed model (adjust as needed)
-model <- lmer(real_eigenvalue ~ power_H * power_L * complementarity + (1|power_H) + (1|power_L), data = RESULTADOS)
-anova_results <- Anova(model, type = "III")
+# Statistical test using linear mixed model (consider if random effects are appropriate)
+# Random effects for power levels might be less meaningful if they are fixed factors.
+# A standard linear model might be more appropriate, or GLMM if distribution warrants.
+# Example using lm:
+model_lm <- lm(real_eigenvalue ~ factor(power_H) * factor(power_L) * factor(complementarity),
+               data = RESULTADOS_clean)
+anova_results <- Anova(model_lm, type = "III")
+print(summary(model_lm))
 print(anova_results)
 
-library(dplyr)
-library(ggplot2)
+# Example using lmer (as in original code, but check assumptions):
+# model_lmer <- lmer(real_eigenvalue ~ factor(power_H) * factor(power_L) * factor(complementarity) + (1|run_id), data = RESULTADOS_clean) # Maybe random effect per run
+# anova_results_lmer <- Anova(model_lmer, type="III")
+# print(anova_results_lmer)
 
-# Aggregate data to avoid duplicate (x, y) points
-RESULTADOS_grid <- RESULTADOS %>%
-  group_by(power_H, power_L) %>%
-  summarise(real_eigenvalue = mean(real_eigenvalue, na.rm = TRUE), .groups = "drop")
 
-# Create the contour plot with the aggregated data
-contour_plot <- ggplot(RESULTADOS_grid, aes(x = power_H, y = power_L, z = real_eigenvalue)) +
-  geom_contour_filled() +
+# --- Plotting ---
+
+# Contour plot - Aggregate data (consider complementarity now)
+# Aggregating might hide complementarity effect. Maybe facet?
+RESULTADOS_grid <- RESULTADOS_clean %>%
+  group_by(power_H, power_L, complementarity) %>% # Add complementarity
+  summarise(mean_real_eigenvalue = mean(real_eigenvalue, na.rm = TRUE), .groups = "drop")
+
+contour_plot <- ggplot(RESULTADOS_grid, aes(x = power_H, y = power_L, z = mean_real_eigenvalue)) +
+  geom_contour_filled(aes(fill = after_stat(level))) +
+  geom_point() + # Add points for context
+  facet_wrap(~ complementarity, labeller = label_both) + # Facet by complementarity
+  scale_x_log10(breaks=power_H_vals) + # Use log scale if power vals span orders of magnitude
+  scale_y_log10(breaks=power_L_vals) +
   labs(
-    title = "Phylogenetic Signal and Stability",
+    title = "Mean Stability (Max Re(λ)) by Phylogenetic Signal and Complementarity",
     x = "Phylogenetic Signal (Power H)",
-    y = "Phylogenetic Signal (Power L)",  # Updated y-axis label
-    fill = expression(Re(lambda))
+    y = "Phylogenetic Signal (Power L)",
+    fill = expression(Mean~Re(lambda))
   ) +
   theme_minimal()
 
-# Create the violin plot
-violin_plot <- ggplot(RESULTADOS, aes(x = as.factor(power_H), y = real_eigenvalue, fill = as.factor(complementarity))) +
-  geom_violin() +
-  facet_wrap(~ as.factor(power_L)) +
-  labs(title = "Stability",
-       x = "Phylogenetic Signal Higher trophic level",
+# Violin plot (seems correct, maybe adjust aesthetics)
+violin_plot <- ggplot(RESULTADOS_clean, aes(x = factor(power_H), y = real_eigenvalue, fill = factor(complementarity))) +
+  geom_violin(trim = FALSE, alpha = 0.8) +
+  geom_boxplot(width=0.1, fill="white", outlier.shape = NA, alpha = 0.5, position=position_dodge(0.9)) + # Optional: add boxplot inside
+  facet_wrap(~ factor(RESULTADOS_clean$power_L), labeller = label_bquote(cols = P[L] == .(as.character(factor(RESULTADOS_clean$power_L))))) + # Better facet labels
+  labs(title = "Distribution of Stability (Max Re(λ))",
+       x = "Phylogenetic Signal Higher trophic level (Power H)",
        y = expression(Re(lambda)),
        fill = "Complementarity") +
   theme_minimal() +
   coord_flip()
 
-###Empirical Cumulative Distribution Functions
-distributions=ggplot(RESULTADOS, aes(x = real_eigenvalue, color = interaction(as.factor(power_H), as.factor(power_L)))) +
-  stat_ecdf() +
-  labs(title = "Phylogenetic Signal and Stability",
-       x = "Real Eigenvalue (Stability)",
+# Empirical Cumulative Distribution Functions
+distributions_plot <- ggplot(RESULTADOS_clean, aes(x = real_eigenvalue, color = factor(complementarity))) +
+  stat_ecdf(geom = "step", pad = FALSE) + # Use step for clarity
+  facet_grid(factor(RESULTADOS_clean$power_H) ~ factor(RESULTADOS_clean$power_L), labeller = label_both) + # Grid facet
+  labs(title = "ECDF of Stability by Signal and Complementarity",
+       x = expression(Real~Eigenvalue~(Re(lambda))),
        y = "Cumulative Probability",
-       color = "Phylogenetic Signal (Power H) : Phylogenetic Signal (Power L)") +
-  theme_minimal()
+       color = "Complementarity") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 
-# Arrange plots in a single panel using grid.arrange()
-final_plot <- grid.arrange(contour_plot, violin_plot, ncol = 2)  # Arrange in 1 row, 2 columns
+# Display plots (consider saving them)
+print(contour_plot)
+print(violin_plot)
+print(distributions_plot)
 
+# If you used grid.arrange before:
+# library(gridExtra)
+# final_plot <- grid.arrange(contour_plot, violin_plot, ncol = 1) # Arrange vertically perhaps
