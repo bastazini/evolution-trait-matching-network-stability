@@ -85,9 +85,6 @@ model <- lmer(real_eigenvalue ~ power_H * power_L * complementarity + (1|power_H
 anova_results <- Anova(model, type = "III")
 print(anova_results)
 
-library(dplyr)
-library(ggplot2)
-
 # Aggregate data to avoid duplicate (x, y) points
 RESULTADOS_grid <- RESULTADOS %>%
   group_by(power_H, power_L) %>%
