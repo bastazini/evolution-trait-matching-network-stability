@@ -9,7 +9,7 @@ require(car)
 library(dplyr)
 
 # Parameters
-runs <- 10
+runs <- 1000
 power_H <- c(0.0001, 1, 2, 5)
 power_L <- c(0.0001, 1, 2, 5)
 complementarity <- c(0.25, 0.5, 0.75, 1)
@@ -68,7 +68,7 @@ for (p in complementarity) {
         }
         
         # Stability Analysis (Eigenvalues of Jacobian)
-        eigenvalues <- eigen(interaction_matrix)$values
+        eigenvalues <- eigen(interaction_matrix, symmetric = FALSE)$values
         real_eigenvalue <- max(Re(eigenvalues))
         
         # Storing Results
