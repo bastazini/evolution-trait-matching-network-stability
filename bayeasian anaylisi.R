@@ -45,7 +45,7 @@ plot(marginal_effects) +
   labs(
     title = "Predicted Marginal Effects with Credible Intervals",
     x = "power_H",
-    y = "Predicted real_eigenvalue"
+    y = expression("Predicted " * Re(lambda) * "")
   ) +
   theme_minimal(base_size = 14)
 
