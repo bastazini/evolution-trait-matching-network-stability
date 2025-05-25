@@ -6,6 +6,7 @@ library(tidyverse)     # ggplot2, dplyr, tidyr, etc.
 library(tidybayes)     # Posterior distribution visualization
 library(bayesplot)     # MCMC diagnostics and PPC
 library(ggeffects)     # Marginal effects (predicted values)
+library(forcats)
 
 # ---------------------------------------------------
 # 2. FIT THE MODEL 
@@ -22,6 +23,7 @@ library(ggeffects)     # Marginal effects (predicted values)
 # ---------------------------------------------------
 fixed_effects <- names(fixef(model_stan))
 fixed_effects <- fixed_effects[fixed_effects != "(Intercept)"]
+
 
 model_stan %>%
   gather_draws(!!!rlang::syms(fixed_effects)) %>%
@@ -44,7 +46,7 @@ marginal_effects <- ggpredict(model_stan, terms = c("power_H", "power_L", "compl
 plot(marginal_effects) +
   labs(
     title = "Predicted Marginal Effects with Credible Intervals",
-    x = "power_H",
+    x = "Consumer Phylogenetic Signal",
     y = expression("Predicted " * Re(lambda) * "")
   ) +
   theme_minimal(base_size = 14)
@@ -72,6 +74,36 @@ mcmc_trace(
 ggsave("fixed_effects_posterior.png", width = 10, height = 6)
 ggsave("marginal_effects.png", width = 8, height = 6)
  ggsave("ppc_density.png", width = 8, height = 5)
+ 
+ 
+ # ---------------------------------------------------
+ # Plots with the correct names
+ # ---------------------------------------------------
+ 
+ model_stan %>%
+   gather_draws(!!!rlang::syms(fixed_effects)) %>%
+   mutate(
+     .variable = fct_recode(.variable,
+                            "Trait matching" = "complementarity",
+                            "Phylogenetic signal Consumer" = "power_H",
+                            "Phylogenetic signal Resource" = "power_L",
+                            "Consumer × Resource" = "power_H:power_L",
+                            "Consumer × Trait matching" = "power_H:complementarity",
+                            "Resource × Trait matching" = "power_L:complementarity",
+                            "Consumer × Resource × Trait matching" = "power_H:power_L:complementarity"
+     )
+   ) %>%
+   ggplot(aes(x = .value, y = reorder(.variable, .value))) +
+   stat_halfeye(.width = c(0.66, 0.95), fill = "steelblue", color = "black") +
+   geom_vline(xintercept = 0, linetype = "dashed", color = "red", linewidth = 0.8) +
+   labs(
+     title = "Posterior Distributions",
+     subtitle = "",
+     x = "Posterior estimate",
+     y = "Parameter"
+   ) +
+   theme_minimal(base_size = 14)
+ 
 
 # ---------------------------------------------------
 # END OF SCRIPT
