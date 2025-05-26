@@ -17,7 +17,15 @@ library(forcats)
    data = RESULTADOS,
    chains = 4, cores = 4, iter = 2000
  )
-
+ 
+ #calculate§ the posterior summary and Rhat values
+ posterior_summary <- summary(model_stan, probs = c(0.025, 0.5, 0.975))
+ print(posterior_summary) 
+ rhat_values <- posterior_summary[, "Rhat"]
+ print(rhat_values)
+ #Plot Rhat values
+ mcmc_rhat_hist(rhat(model_stan))
+ 
 # ---------------------------------------------------
 # 3. POSTERIOR DISTRIBUTIONS OF FIXED EFFECTS (excluding intercept)
 # ---------------------------------------------------
@@ -110,7 +118,7 @@ ggsave("marginal_effects.png", width = 8, height = 6)
  # ---------------------------------------------------
  
  posterior <- as.data.frame(model_stan)
- mean(posterior$`power_L` < 0)
+ mean(posterior$`power_H:power_L` > 0)
  
 
 # ---------------------------------------------------
