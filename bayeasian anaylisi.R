@@ -85,12 +85,12 @@ ggsave("marginal_effects.png", width = 8, height = 6)
    mutate(
      .variable = fct_recode(.variable,
                             "Trait matching" = "complementarity",
-                            "Phylogenetic signal Consumer" = "power_H",
-                            "Phylogenetic signal Resource" = "power_L",
-                            "Consumer × Resource" = "power_H:power_L",
-                            "Consumer × Trait matching" = "power_H:complementarity",
-                            "Resource × Trait matching" = "power_L:complementarity",
-                            "Consumer × Resource × Trait matching" = "power_H:power_L:complementarity"
+                            "Phylo signal (C)" = "power_H",
+                            "Phylo signal (R)" = "power_L",
+                            "Phylo signal (C):Phylo signal (R)" = "power_H:power_L",
+                            "Phylo signal (C):Trait matching" = "power_H:complementarity",
+                            "Phylo signal (R):Trait matching" = "power_L:complementarity",
+                            "Phylo signal (C):Phylo signal (R):Trait matching" = "power_H:power_L:complementarity"
      )
    ) %>%
    ggplot(aes(x = .value, y = reorder(.variable, .value))) +
@@ -103,6 +103,14 @@ ggsave("marginal_effects.png", width = 8, height = 6)
      y = "Parameter"
    ) +
    theme_minimal(base_size = 14)
+ ggsave("posterior_plot.pdf", width = 10, height = 6)
+ 
+ # ---------------------------------------------------
+ # calculate the effect of the interaction
+ # ---------------------------------------------------
+ 
+ posterior <- as.data.frame(model_stan)
+ mean(posterior$`power_L` < 0)
  
 
 # ---------------------------------------------------
