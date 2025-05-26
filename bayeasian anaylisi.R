@@ -7,6 +7,7 @@ library(tidybayes)     # Posterior distribution visualization
 library(bayesplot)     # MCMC diagnostics and PPC
 library(ggeffects)     # Marginal effects (predicted values)
 library(forcats)
+library(bayesplot)    #For mcmc_rhat_hist
 
 # ---------------------------------------------------
 # 2. FIT THE MODEL 
