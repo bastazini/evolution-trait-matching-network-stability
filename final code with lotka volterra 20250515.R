@@ -1,3 +1,5 @@
+rm(list = ls())
+
 require(geiger)
 require(plotrix)
 require(picante)
@@ -9,7 +11,7 @@ require(car)
 library(dplyr)
 
 # Parameters
-runs <- 1000
+runs <- 5000
 power_H <- c(0.0001, 1, 2, 5)
 power_L <- c(0.0001, 1, 2, 5)
 complementarity <- c(0.25, 0.5, 0.75, 1)
@@ -25,8 +27,8 @@ for (p in complementarity) {
     for (q in power_L) {
       for (m in 1:runs) {
         
-        n_spe_H <- sample(5:8, 1)
-        n_spe_L <- sample(5:8, 1)
+        n_spe_H <- sample(10:50, 1)
+        n_spe_L <- sample(10:50, 1)
         
         # Simulating Phylogenetic Trees
         tree_H <- sim.bdtree(b = 0.1, d = 0, stop = "taxa", n = n_spe_H, extinct = FALSE)
@@ -75,11 +77,14 @@ for (p in complementarity) {
         RESULTADOS <- rbind(RESULTADOS, data.frame(real_eigenvalue = real_eigenvalue,
                                                    power_H = o,
                                                    power_L = q,
-                                                   complementarity = p))
+                                                   complementarity = p,
+                                                   n_spe_H = n_spe_H,
+                                                   n_spe_L = n_spe_L))
       }
     }
   }
 }
+write.csv(RESULTADOS, "RESULTS.csv", row.names = FALSE)
 # Statistical test using linear mixed model (adjust as needed)
 model <- lmer(real_eigenvalue ~ power_H * power_L * complementarity + (1|power_H) + (1|power_L), data = RESULTADOS)
 anova_results <- Anova(model, type = "III")

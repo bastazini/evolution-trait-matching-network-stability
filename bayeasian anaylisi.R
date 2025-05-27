@@ -9,6 +9,7 @@ library(ggeffects)     # Marginal effects (predicted values)
 library(forcats)
 library(bayesplot)    #For mcmc_rhat_hist
 
+
 # ---------------------------------------------------
 # 2. FIT THE MODEL 
 # ---------------------------------------------------
@@ -18,6 +19,7 @@ library(bayesplot)    #For mcmc_rhat_hist
    data = RESULTADOS,
    chains = 4, cores = 4, iter = 2000
  )
+
  
  #calculate§ the posterior summary and Rhat values
  posterior_summary <- summary(model_stan, probs = c(0.025, 0.5, 0.975))
