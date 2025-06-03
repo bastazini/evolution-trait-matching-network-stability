@@ -121,10 +121,10 @@ ggsave("marginal_effects.png", width = 8, height = 6)
  # ---------------------------------------------------
  
  posterior <- as.data.frame(model_stan)
- mean(posterior$`complementarity` > 0)
+ mean(posterior$`power_H:power_L` > 0)
  
 
 # ---------------------------------------------------
-# END OF SCRIPT
+# CONTRASTS
 # ---------------------------------------------------
  
