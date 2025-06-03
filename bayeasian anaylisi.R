@@ -21,7 +21,7 @@ library(bayesplot)    #For mcmc_rhat_hist
  )
 
  
- #calculate§ the posterior summary and Rhat values
+ #calculate the posterior summary and Rhat values
  posterior_summary <- summary(model_stan, probs = c(0.025, 0.5, 0.975))
  print(posterior_summary) 
  rhat_values <- posterior_summary[, "Rhat"]
@@ -80,7 +80,7 @@ mcmc_trace(
   theme_minimal(base_size = 14)
 
 # ---------------------------------------------------
-# 7. OPTIONAL: SAVE PLOTS TO FILES
+# 7. SAVE PLOTS 
 # ---------------------------------------------------
 ggsave("fixed_effects_posterior.png", width = 10, height = 6)
 ggsave("marginal_effects.png", width = 8, height = 6)
@@ -88,7 +88,7 @@ ggsave("marginal_effects.png", width = 8, height = 6)
  
  
  # ---------------------------------------------------
- # Plots with the correct names
+ # Plot Fixed effect  with the correct names
  # ---------------------------------------------------
  
  model_stan %>%
@@ -121,7 +121,7 @@ ggsave("marginal_effects.png", width = 8, height = 6)
  # ---------------------------------------------------
  
  posterior <- as.data.frame(model_stan)
- mean(posterior$`power_H:power_L` > 0)
+ mean(posterior$`complementarity` > 0)
  
 
 # ---------------------------------------------------
