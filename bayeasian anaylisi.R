@@ -8,16 +8,22 @@ library(bayesplot)     # MCMC diagnostics and PPC
 library(ggeffects)     # Marginal effects (predicted values)
 library(forcats)
 library(bayesplot)    #For mcmc_rhat_hist
+library(brms)
 
 
 # ---------------------------------------------------
 # 2. FIT THE MODEL 
 # ---------------------------------------------------
- model_stan <- stan_lmer(
-  real_eigenvalue ~ power_H * power_L * complementarity +
+## change values to factor
+RESULTADOS$power_H <- as.numeric(RESULTADOS$power_H)
+RESULTADOS$power_L <- as.numeric(RESULTADOS$power_L)
+RESULTADOS$complementarity <- as.numeric(RESULTADOS$complementarity)
+
+model_stan <- stan_lmer(
+   max_Re_eigen_jacobian ~ power_H * power_L * complementarity +
      (1 | power_H) + (1 | power_L),
    data = RESULTADOS,
-   chains = 4, cores = 4, iter = 2000
+   chains = 6, cores = 4, iter = 2000
  )
 
  
@@ -84,7 +90,8 @@ mcmc_trace(
 # ---------------------------------------------------
 ggsave("fixed_effects_posterior.png", width = 10, height = 6)
 ggsave("marginal_effects.png", width = 8, height = 6)
- ggsave("ppc_density.png", width = 8, height = 5)
+ggsave("ppc_density.png", width = 8, height = 5)
+
  
  
  # ---------------------------------------------------
@@ -121,7 +128,7 @@ ggsave("marginal_effects.png", width = 8, height = 6)
  # ---------------------------------------------------
  
  posterior <- as.data.frame(model_stan)
- mean(posterior$`power_H:power_L` > 0)
+ mean(posterior$`power_H:complementarity` <0)
  
 
 # ---------------------------------------------------
