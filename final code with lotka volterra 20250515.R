@@ -1,3 +1,4 @@
+rm(list = ls()) # Clear workspace
 require(geiger)
 # require(plotrix) # Using custom rescale
 require(picante)
@@ -19,7 +20,7 @@ rescale_vector <- function(x, new_range) {
 }
 
 # --- Simulation Parameters ---
-runs <- 50 # REDUCED SIGNIFICANTLY for testing; increase for full run
+runs <- 1000 # Number of runs per parameter combination
 power_H <- c(0.0001, 1, 2, 5)
 power_L <- c(0.0001, 1, 2, 5)
 complementarity_levels <- c(0.25, 0.5, 0.75, 1)
@@ -41,12 +42,12 @@ RESULTADOS <- data.frame(max_Re_eigen_jacobian = numeric(),
                          simulation_converged = logical()) # To track issues
 
 contagem <- 0
-total_iterations <- length(complementarity_levels) * length(power_H_levels) * length(power_L_levels) * runs
+total_iterations <- length(complementarity_levels) * length(power_H) * length(power_L) * runs
 print(paste("Total iterations planned:", total_iterations))
 
 for (p_comp in complementarity_levels) {
-  for (o_pH in power_H_levels) {
-    for (q_pL in power_L_levels) {
+  for (o_pH in power_H) {
+    for (q_pL in power_L) {
       for (m_run in 1:runs) {
         contagem <- contagem + 1
         if (contagem %% 10 == 0) {
@@ -184,6 +185,8 @@ for (p_comp in complementarity_levels) {
 }
 
 print("Simulation finished.")
+write.csv(RESULTADOS, "RESULTADOS_simulation.csv", row.names = FALSE)
+
 # Filter out rows where Jacobian could not be calculated (e.g., due to divergence)
 RESULTADOS_filtered <- RESULTADOS[!is.na(RESULTADOS$max_Re_eigen_jacobian), ]
 print(paste("Number of successful runs (Jacobian calculated):", nrow(RESULTADOS_filtered)))
