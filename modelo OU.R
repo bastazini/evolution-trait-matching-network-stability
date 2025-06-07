@@ -19,9 +19,9 @@ rescale_vector <- function(x, new_range) {
 }
 
 # --- Simulation Parameters ---
-runs <- 100
-alpha_H_vals <- c(0.01, 0.1, 1, 5)
-alpha_L_vals <- c(0.01, 0.1, 1, 5)
+runs <- 200
+alpha_H_vals <- c(0.01, 0.25, 0.75, 1)
+alpha_L_vals <- c(0.01, 0.25, 0.75, 1)
 trait_matching_levels <- seq(0.25, 0.95, length.out = 4)
 
 time_steps_lv <- 2000
@@ -30,6 +30,8 @@ intraspecific_comp <- -0.5
 initial_abundance_range <- c(0.1, 0.5)
 r_base_range <- c(0.1, 0.3)
 max_allowed_abundance <- 1e6
+
+#set.seed(123)
 
 RESULTADOS <- data.frame(max_Re_eigen_jacobian = numeric(),
                          alpha_H = numeric(),

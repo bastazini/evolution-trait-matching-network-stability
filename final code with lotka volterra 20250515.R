@@ -1,12 +1,9 @@
 rm(list = ls()) # Clear workspace
 require(geiger)
-# require(plotrix) # Using custom rescale
 require(picante)
 require(bipartite)
 require(igraph)
 require(ggplot2)
-# require(lme4)
-# require(car)
 library(dplyr)
 
 # Function to rescale
@@ -20,10 +17,11 @@ rescale_vector <- function(x, new_range) {
 }
 
 # --- Simulation Parameters ---
-runs <- 1000 # Number of runs per parameter combination
+runs <- 500# Number of runs per parameter combination
 power_H <- c(0.0001, 1, 2, 5)
 power_L <- c(0.0001, 1, 2, 5)
 complementarity_levels <- c(0.25, 0.5, 0.75, 1)
+
 
 time_steps_lv <- 2000 # Time steps for LV simulation
 dt_lv <- 0.01         # Time step size for LV simulation
@@ -31,6 +29,8 @@ intraspecific_comp <- -0.5 # Diagonal elements for interaction_matrix_lv
 initial_abundance_range <- c(0.1, 0.5) # Range for initial N
 r_base_range <- c(0.1, 0.3) # Range for base growth rate
 max_allowed_abundance <- 1e6 # To stop runaway simulations
+
+set.seed(123)
 
 RESULTADOS <- data.frame(max_Re_eigen_jacobian = numeric(),
                          power_H = numeric(),
@@ -44,6 +44,7 @@ RESULTADOS <- data.frame(max_Re_eigen_jacobian = numeric(),
 contagem <- 0
 total_iterations <- length(complementarity_levels) * length(power_H) * length(power_L) * runs
 print(paste("Total iterations planned:", total_iterations))
+
 
 for (p_comp in complementarity_levels) {
   for (o_pH in power_H) {
@@ -186,6 +187,9 @@ for (p_comp in complementarity_levels) {
 
 print("Simulation finished.")
 write.csv(RESULTADOS, "RESULTADOS_simulation.csv", row.names = FALSE)
+min(RESULTADOS$power_L, na.rm = TRUE)
+max(RESULTADOS$power_L, na.rm = TRUE)
+
 
 # Filter out rows where Jacobian could not be calculated (e.g., due to divergence)
 RESULTADOS_filtered <- RESULTADOS[!is.na(RESULTADOS$max_Re_eigen_jacobian), ]
