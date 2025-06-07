@@ -14,16 +14,18 @@ library(brms)
 # ---------------------------------------------------
 # 2. FIT THE MODEL 
 # ---------------------------------------------------
-## change values to factor
-RESULTADOS$power_H <- as.numeric(RESULTADOS$power_H)
-RESULTADOS$power_L <- as.numeric(RESULTADOS$power_L)
-RESULTADOS$complementarity <- as.numeric(RESULTADOS$complementarity)
+model_stan1 <- stan_lmer(
+  max_Re_eigen_jacobian ~ alpha_H * alpha_L * trait_matching+
+  (1 | alpha_H) + (1 | alpha_L),
+  data = RESULTADOS,
+  chains = 4, cores = 4, iter = 2000
+)
 
-model_stan <- stan_lmer(
-   max_Re_eigen_jacobian ~ power_H * power_L * complementarity +
-     (1 | power_H) + (1 | power_L),
+model_stan <- stan_glm(
+   max_Re_eigen_jacobian ~ alpha_H * alpha_L * trait_matching,
+     #(1 | power_H) + (1 | power_L),
    data = RESULTADOS,
-   chains = 6, cores = 4, iter = 2000
+   chains = 4, cores = 4, iter = 2000
  )
 
  
@@ -132,6 +134,42 @@ ggsave("ppc_density.png", width = 8, height = 5)
  
 
 # ---------------------------------------------------
-# CONTRASTS
+# model prediction OU
 # ---------------------------------------------------
+ library(tidybayes)
  
+ # Create new data grid to predict
+ new_data <- expand.grid(
+   alpha_H = c(0.01, 0.1, 0.5, 1),
+   alpha_L = c(0.01, 0.1, 0.5, 1),
+   trait_matching = seq(0.25, 0.95, length.out = 20)
+ )
+ 
+ # Get posterior predictions
+ preds <- add_epred_draws(new_data, model_stan)
+ 
+library(tidybayes)
+
+# Create new data grid to predict
+new_data <- expand.grid(
+  alpha_H = c(0.01, 0.1, 0.5, 1),
+  alpha_L = c(0.01, 0.1, 0.5, 1),
+  trait_matching = seq(0.25, 0.95, length.out = 20)
+)
+
+# Get posterior predictions
+preds <- add_epred_draws(new_data, model_stan)
+
+library(ggplot2)
+
+# Plot predicted stability vs trait_matching, faceted by alpha combinations
+ggplot(preds, aes(x = trait_matching, y = .epred)) +
+  stat_lineribbon(.width = c(0.66, 0.95), alpha = 0.3) +
+  facet_grid(alpha_H ~ alpha_L, labeller = label_both) +
+  labs(
+    x = "Trait Matching",
+    y = "Predicted max Re(eigenvalue)",
+    title = "Posterior Predictions: Stability vs Trait Matching and Evolutionary Constraints"
+  ) +
+  theme_minimal()
+
