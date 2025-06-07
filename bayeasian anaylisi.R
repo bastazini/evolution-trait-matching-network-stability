@@ -150,26 +150,36 @@ ggsave("ppc_density.png", width = 8, height = 5)
  
 library(tidybayes)
 
-# Create new data grid to predict
-new_data <- expand.grid(
-  alpha_H = c(0.01, 0.1, 0.5, 1),
-  alpha_L = c(0.01, 0.1, 0.5, 1),
-  trait_matching = seq(0.25, 0.95, length.out = 20)
-)
-
-# Get posterior predictions
-preds <- add_epred_draws(new_data, model_stan)
-
-library(ggplot2)
-
-# Plot predicted stability vs trait_matching, faceted by alpha combinations
-ggplot(preds, aes(x = trait_matching, y = .epred)) +
-  stat_lineribbon(.width = c(0.66, 0.95), alpha = 0.3) +
-  facet_grid(alpha_H ~ alpha_L, labeller = label_both) +
-  labs(
-    x = "Trait Matching",
-    y = "Predicted max Re(eigenvalue)",
-    title = "Posterior Predictions: Stability vs Trait Matching and Evolutionary Constraints"
-  ) +
-  theme_minimal()
-
+ library(ggplot2)
+ library(dplyr)
+ 
+ # 1. Create quartiles for trait matching
+ RESULTADOS <- RESULTADOS %>%
+   mutate(trait_quartile = ntile(trait_matching, 4)) %>%
+   mutate(trait_quartile = factor(trait_quartile, 
+                                  labels = c("Trait matching (Q1)", "Trait matching (Q2)", "Trait matching (Q3)", "Trait matching (Q4)")))
+ 
+ # 2. Aggregate results (e.g. mean eigenvalue for each alpha_H/L pair)
+ agg_data <- RESULTADOS %>%
+   group_by(alpha_H, alpha_L, trait_quartile) %>%
+   summarize(mean_eigen = mean(max_Re_eigen_jacobian, na.rm = TRUE), .groups = "drop")
+ 
+ # 3. Plot heatmaps faceted by trait_matching quartiles
+ ggplot(agg_data, aes(x = factor(alpha_H), y = factor(alpha_L), fill = mean_eigen)) +
+   geom_tile(color = "white") +
+   scale_fill_viridis_c(option = "plasma", direction = -1, name = "Mean max Re") +
+   facet_wrap(~ trait_quartile, ncol = 2) +
+   labs(
+     title = "Effect of Trait Evolution Constraints on Stability",
+     x = expression(alpha[H]),
+     y = expression(alpha[L])
+   ) +
+   theme_minimal(base_size = 14) +
+   theme(
+     strip.text = element_text(face = "bold"),
+     panel.grid = element_blank(),
+     axis.text = element_text(size = 12),
+     axis.title = element_text(size = 14),
+     legend.position = "bottom"
+   )
+ 
