@@ -17,7 +17,7 @@ rescale_vector <- function(x, new_range) {
 }
 
 # --- Simulation Parameters ---
-runs <- 500# Number of runs per parameter combination
+runs <- 100# Number of runs per parameter combination
 power_H <- c(0.0001, 1, 2, 5)
 power_L <- c(0.0001, 1, 2, 5)
 complementarity_levels <- c(0.25, 0.5, 0.75, 1)

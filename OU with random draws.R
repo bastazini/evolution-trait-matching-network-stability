@@ -44,9 +44,9 @@ print(paste("Total iterations planned:", total_iterations))
 
 for (m_run in 1:runs) {
   # Random draws
-  p_match <- runif(1, 0.25, 0.95)
-  alpha_H <- runif(1, 0, 1)
-  alpha_L <- runif(1, 0, 1)
+  p_match <- runif(1, 0.05, 0.95)
+  alpha_H <- runif(1, 0, 3)
+  alpha_L <- runif(1, 0, 3)
   
   contagem <- contagem + 1
   if (contagem %% 10 == 0) {

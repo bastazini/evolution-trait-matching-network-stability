@@ -8,6 +8,7 @@ library(bayesplot)     # MCMC diagnostics and PPC
 library(ggeffects)     # Marginal effects (predicted values)
 library(forcats)
 library(bayesplot)    #For mcmc_rhat_hist
+
 library(brms)
 
 
@@ -22,7 +23,7 @@ model_stan1 <- stan_lmer(
 )
 
 model_stan <- stan_glm(
-   max_Re_eigen_jacobian ~ alpha_H * alpha_L * trait_matching,
+   max_Re_eigen_jacobian ~ alpha_H * alpha_L * trait_matching ,
      #(1 | power_H) + (1 | power_L),
    data = RESULTADOS,
    chains = 4, cores = 4, iter = 2000
@@ -35,8 +36,7 @@ model_stan <- stan_glm(
  rhat_values <- posterior_summary[, "Rhat"]
  print(rhat_values)
  #Plot Rhat values
- mcmc_rhat_hist(rhat(model_stan))
- 
+ mcmc_rhat_hist(rhat_values) 
 # ---------------------------------------------------
 # 3. POSTERIOR DISTRIBUTIONS OF FIXED EFFECTS (excluding intercept)
 # ---------------------------------------------------
@@ -104,13 +104,13 @@ ggsave("ppc_density.png", width = 8, height = 5)
    gather_draws(!!!rlang::syms(fixed_effects)) %>%
    mutate(
      .variable = fct_recode(.variable,
-                            "Trait matching" = "complementarity",
-                            "Phylo signal (C)" = "power_H",
-                            "Phylo signal (R)" = "power_L",
-                            "Phylo signal (C):Phylo signal (R)" = "power_H:power_L",
-                            "Phylo signal (C):Trait matching" = "power_H:complementarity",
-                            "Phylo signal (R):Trait matching" = "power_L:complementarity",
-                            "Phylo signal (C):Phylo signal (R):Trait matching" = "power_H:power_L:complementarity"
+                            "Trait matching" = "trait_matching",
+                            "Phylo signal (C)" = "alpha_H",
+                            "Phylo signal (R)" = "alpha_L",
+                            "Phylo signal (C):Phylo signal (R)" = "alpha_H:alpha_L",
+                            "Phylo signal (C):Trait matching" = "alpha_H:trait_matching",
+                            "Phylo signal (R):Trait matching" = "alpha_L:trait_matching",
+                            "Phylo signal (C):Phylo signal (R):Trait matching" = "alpha_H:alpha_L:trait_matching"
      )
    ) %>%
    ggplot(aes(x = .value, y = reorder(.variable, .value))) +
@@ -142,7 +142,7 @@ ggsave("ppc_density.png", width = 8, height = 5)
  new_data <- expand.grid(
    alpha_H = c(0.01, 0.1, 0.5, 1),
    alpha_L = c(0.01, 0.1, 0.5, 1),
-   trait_matching = seq(0.25, 0.95, length.out = 20)
+   trait_matching = seq(0.05, 0.95, length.out = 20)
  )
  
  # Get posterior predictions
@@ -182,4 +182,92 @@ library(tidybayes)
      axis.title = element_text(size = 14),
      legend.position = "bottom"
    )
+ 
+ #### Code for random draws in OU
+ # Load libraries
+ library(dplyr)
+ library(ggplot2)
+ library(tidybayes)  # Not used here, but part of original script
+ library(viridis)
+ 
+ # Assume RESULTADOS_filtered is already created:
+ # If not, filter it here:
+ RESULTADOS_filtered <- RESULTADOS[!is.na(RESULTADOS$max_Re_eigen_jacobian), ]
+ 
+ # STEP 1: Bin alpha_H and alpha_L into categories
+ RESULTADOS_binned <- RESULTADOS_filtered %>%
+   mutate(
+     alpha_H_bin = cut(alpha_H, breaks = c(0, 0.5, 1, 2, 3),
+                       labels = c("[0–0.5]", "(0.5–1]", "(1–2]", "(2–3]"),
+                       include.lowest = TRUE),
+     alpha_L_bin = cut(alpha_L, breaks = c(0, 0.5, 1, 2, 3),
+                       labels = c("[0–0.5]", "(0.5–1]", "(1–2]", "(2–3]"),
+                       include.lowest = TRUE),
+     trait_quartile = ntile(trait_matching, 4),
+     trait_quartile = factor(trait_quartile,
+                             labels = c("Trait matching (Q1)", "Trait matching (Q2)",
+                                        "Trait matching (Q3)", "Trait matching (Q4)"))
+   )
+ 
+ # STEP 2: Aggregate data by alpha_H_bin, alpha_L_bin, and trait quartile
+ agg_data <- RESULTADOS_binned %>%
+   group_by(alpha_H_bin, alpha_L_bin, trait_quartile) %>%
+   summarize(mean_eigen = mean(max_Re_eigen_jacobian, na.rm = TRUE), .groups = "drop")
+ 
+ # STEP 3: Plot heatmap faceted by trait quartile
+ ggplot(agg_data, aes(x = alpha_H_bin, y = alpha_L_bin, fill = mean_eigen)) +
+   geom_tile(color = "white") +
+   scale_fill_viridis_c(option = "plasma", direction = -1, name = "Mean max Re") +
+   facet_wrap(~ trait_quartile, ncol = 2) +
+   labs(
+     title = "Effect of Trait Evolution Constraints on Stability",
+     x = expression(alpha[C]),
+     y = expression(alpha[R])
+   ) +
+   theme_minimal(base_size = 14) +
+   theme(
+     strip.text = element_text(face = "bold"),
+     panel.grid = element_blank(),
+     axis.text = element_text(size = 12),
+     axis.title = element_text(size = 14),
+     legend.position = "bottom"
+   )
+ 
+ #Ploting distributions as alphas
+ library(ggplot2)
+ library(tidybayes)
+ library(forcats)
+ library(dplyr)
+ 
+ # Create named vector with plotmath-style labels
+ label_map <- c(
+   "trait_matching" = "italic('Trait matching')",
+   "alpha_H" = "alpha[C]",
+   "alpha_L" = "alpha[R]",
+   "alpha_H:alpha_L" = "alpha[C] * ':' * alpha[R]",
+   "alpha_H:trait_matching" = "alpha[C] * ':' * italic('Trait matching')",
+   "alpha_L:trait_matching" = "alpha[R] * ':' * italic('Trait matching')",
+   "alpha_H:alpha_L:trait_matching" = "alpha[C] * ':' * alpha[R] * ':' * italic('Trait matching')"
+ )
+ 
+ # Plot
+ model_stan %>%
+   gather_draws(!!!rlang::syms(fixed_effects)) %>%
+   mutate(.variable = factor(.variable, levels = names(label_map))) %>%
+   ggplot(aes(x = .value, y = .variable)) +
+   stat_halfeye(.width = c(0.66, 0.95), fill = "steelblue", color = "black") +
+   geom_vline(xintercept = 0, linetype = "dashed", color = "red", linewidth = 0.8) +
+   scale_y_discrete(labels = label_map, guide = guide_axis(check.overlap = TRUE)) +
+   labs(
+     title = "Posterior Distributions",
+     x = "Posterior estimate",
+     y = "Parameter"
+   ) +
+   theme_minimal(base_size = 14) +
+   theme(axis.text.y = element_text(size = 12)) +
+   scale_y_discrete(labels = function(x) parse(text = label_map[x]))
+ 
+ # Save to PDF
+ ggsave("posterior_plot.pdf", width = 10, height = 6)
+ 
  
