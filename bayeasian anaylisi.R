@@ -126,11 +126,43 @@ ggsave("ppc_density.png", width = 8, height = 5)
  ggsave("posterior_plot.pdf", width = 10, height = 6)
  
  # ---------------------------------------------------
- # calculate the effect of the interaction
+ # calculate the effect of terms
  # ---------------------------------------------------
  
  posterior <- as.data.frame(model_stan)
- mean(posterior$`power_H:complementarity` <0)
+ mean(posterior$`trait_matching` >0)
+
+ ###function to automatize extraction fo probs
+ get_probabilities <- function(model) {
+   # Extract posterior draws as a data frame
+   posterior <- as.data.frame(model)
+   
+   # Remove intercept if present (optional)
+   posterior <- posterior[, !grepl("(Intercept)", colnames(posterior))]
+   
+   # Calculate probabilities
+   probs <- sapply(posterior, function(x) {
+     c(
+       prob_less_than_zero = mean(x < 0),
+       prob_greater_than_zero = mean(x > 0)
+     )
+   })
+   
+   # Transpose and convert to data frame
+   probs_df <- as.data.frame(t(probs))
+   
+   # Round for readability
+   probs_df <- round(probs_df, 4)
+   
+   # Return with term names as a column
+   probs_df$term <- rownames(probs_df)
+   rownames(probs_df) <- NULL
+   
+   return(probs_df[, c("term", "prob_less_than_zero", "prob_greater_than_zero")])
+ }
+ 
+ probabilities <- get_probabilities(model_stan)
+ print(probabilities)
  
 
 # ---------------------------------------------------
@@ -269,5 +301,23 @@ library(tidybayes)
  
  # Save to PDF
  ggsave("posterior_plot.pdf", width = 10, height = 6)
+ 
+ 
+ ##########Plotting predicte dvalues for eigen values
+ library(tidybayes)
+ 
+ # For overall predicted distribution
+ posterior_predict(model_stan) %>%
+   as.data.frame() %>%
+   pivot_longer(cols = everything()) %>%
+   ggplot(aes(x = value)) +
+   stat_halfeye(fill = "steelblue", alpha = 0.6) +
+   labs(
+     title = "Posterior Predictive Distribution",
+     x = "Predicted Re(λ)"
+   ) +
+   theme_minimal()
+ 
+ 
  
  
