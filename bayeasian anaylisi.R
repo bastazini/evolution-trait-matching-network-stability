@@ -229,17 +229,18 @@ library(tidybayes)
  # STEP 1: Bin alpha_H and alpha_L into categories
  RESULTADOS_binned <- RESULTADOS_filtered %>%
    mutate(
-     alpha_H_bin = cut(alpha_H, breaks = c(0, 0.5, 1, 2, 3),
-                       labels = c("[0–0.5]", "(0.5–1]", "(1–2]", "(2–3]"),
+     alpha_H_bin = cut(alpha_H, breaks = c(0, 0.5, 1, 2, 3, 5),
+                       labels = c("[0–0.5]", "(0.5–1]", "(1–2]", "(2–3]", "(3–5]"),
                        include.lowest = TRUE),
-     alpha_L_bin = cut(alpha_L, breaks = c(0, 0.5, 1, 2, 3),
-                       labels = c("[0–0.5]", "(0.5–1]", "(1–2]", "(2–3]"),
+     alpha_L_bin = cut(alpha_L, breaks = c(0, 0.5, 1, 2, 3, 5),
+                       labels = c("[0–0.5]", "(0.5–1]", "(1–2]", "(2–3]", "(3–5]"),
                        include.lowest = TRUE),
      trait_quartile = ntile(trait_matching, 4),
      trait_quartile = factor(trait_quartile,
                              labels = c("Trait matching (Q1)", "Trait matching (Q2)",
                                         "Trait matching (Q3)", "Trait matching (Q4)"))
    )
+ 
  
  # STEP 2: Aggregate data by alpha_H_bin, alpha_L_bin, and trait quartile
  agg_data <- RESULTADOS_binned %>%
